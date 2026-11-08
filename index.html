@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Вечный двигатель на магнитах — честная физика</title>
+<style>
+  :root {
+    --bg: #05070c;
+    --panel: rgba(14, 20, 32, 0.82);
+    --line: rgba(120, 160, 220, 0.18);
+    --text: #dbe6f5;
+    --muted: #7f8ea6;
+    --cyan: #35d0e0;
+    --amber: #ffb454;
+    --red: #e2483d;
+    --blue: #3d7be2;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: radial-gradient(120% 90% at 50% 0%, #0b1220 0%, var(--bg) 65%);
+    color: var(--text);
+    font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+  }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .hud {
+    position: fixed; top: 18px; left: 20px; z-index: 5;
+    pointer-events: none; max-width: 46ch;
+  }
+  .hud h1 {
+    margin: 0 0 2px; font-size: 20px; font-weight: 600; letter-spacing: 0.2px;
+  }
+  .hud .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
+  .status {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 11px; border-radius: 999px; font-size: 12.5px;
+    background: rgba(53, 208, 224, 0.1); border: 1px solid rgba(53, 208, 224, 0.28);
+    color: #a8f0f8;
+  }
+  .status.stopped { background: rgba(255,180,84,0.1); border-color: rgba(255,180,84,0.3); color: #ffd7a0; }
+  .status.paused { background: rgba(160,170,190,0.1); border-color: rgba(160,170,190,0.3); color: #c3ccdb; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  .readouts {
+    display: grid; grid-template-columns: auto auto; gap: 3px 18px;
+    margin-top: 12px; font-variant-numeric: tabular-nums; font-size: 13px;
+  }
+  .readouts span:nth-child(odd) { color: var(--muted); }
+  .readouts b { font-weight: 600; }
+
+  .panel {
+    position: fixed; top: 18px; right: 18px; z-index: 5;
+    width: 288px; padding: 16px; border-radius: 14px;
+    background: var(--panel); border: 1px solid var(--line);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  }
+  .panel h2 {
+    margin: 0 0 12px; font-size: 11px; letter-spacing: 1.4px;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+  }
+  .ctl { margin-bottom: 13px; }
+  .ctl label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12.5px; color: #b9c6da; margin-bottom: 5px;
+  }
+  .ctl output { color: var(--cyan); font-variant-numeric: tabular-nums; font-size: 12px; }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+    border-radius: 2px; background: rgba(130, 160, 200, 0.22); outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--cyan); border: 2px solid #0a1420; cursor: pointer;
+    box-shadow: 0 0 10px rgba(53, 208, 224, 0.5);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--cyan); border: 2px solid #0a1420; cursor: pointer;
+  }
+  .toggles { display: flex; flex-direction: column; gap: 7px; margin: 14px 0 4px; font-size: 12.5px; color: #b9c6da; }
+  .toggles label { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  input[type="checkbox"] { accent-color: var(--cyan); width: 14px; height: 14px; cursor: pointer; }
+  .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  button {
+    font: inherit; font-size: 13px; padding: 9px 10px; border-radius: 9px;
+    border: 1px solid rgba(120, 170, 230, 0.28); color: var(--text);
+    background: rgba(60, 110, 180, 0.22); cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: rgba(70, 130, 210, 0.34); border-color: rgba(120, 190, 255, 0.55); }
+  button.primary { background: rgba(53, 208, 224, 0.16); border-color: rgba(53, 208, 224, 0.45); color: #bff6fb; }
+
+  .graph {
+    position: fixed; left: 20px; bottom: 18px; z-index: 5;
+    width: 390px; max-width: calc(100vw - 40px); padding: 10px 12px 6px;
+    border-radius: 12px; background: var(--panel); border: 1px solid var(--line);
+    backdrop-filter: blur(14px);
+  }
+  .graph .legend {
+    display: flex; gap: 16px; font-size: 11px; color: var(--muted);
+    margin-bottom: 4px; font-variant-numeric: tabular-nums;
+  }
+  .legend i { display: inline-block; width: 16px; height: 2px; vertical-align: middle; margin-right: 5px; }
+  .legend .w i { background: var(--cyan); }
+  .legend .e i { background: var(--amber); }
+  #graph { width: 100%; height: 132px; display: block; }
+
+  .why {
+    position: fixed; right: 18px; bottom: 18px; z-index: 5;
+    width: min(430px, calc(100vw - 40px)); padding: 12px 14px;
+    border-radius: 12px; background: var(--panel); border: 1px solid var(--line);
+    backdrop-filter: blur(14px); font-size: 12.5px; color: #b9c6da;
+  }
+  .why summary {
+    cursor: pointer; color: var(--text); font-weight: 600; font-size: 13px;
+    list-style: none; display: flex; align-items: center; gap: 8px;
+  }
+  .why summary::-webkit-details-marker { display: none; }
+  .why summary::before {
+    content: "?"; display: inline-grid; place-items: center;
+    width: 18px; height: 18px; border-radius: 50%; font-size: 11px;
+    background: rgba(255, 180, 84, 0.16); color: var(--amber);
+    border: 1px solid rgba(255, 180, 84, 0.35); flex: none;
+  }
+  .why p { margin: 10px 0 2px; line-height: 1.55; }
+  .why b { color: #e8f0fb; }
+
+  .hint {
+    position: fixed; left: 50%; top: 20px; transform: translateX(-50%);
+    color: var(--muted); font-size: 11.5px; z-index: 4; pointer-events: none;
+    white-space: nowrap;
+  }
+
+  #fallback {
+    position: fixed; inset: 0; z-index: 50; display: none; place-items: center;
+    background: #05070c; text-align: center; padding: 30px;
+  }
+  #fallback.show { display: grid; }
+  #fallback div { max-width: 46ch; }
+  #fallback h2 { color: #ffb454; font-size: 18px; }
+  #fallback code { background: #0e1624; padding: 2px 6px; border-radius: 5px; color: var(--cyan); }
+
+  @media (max-width: 1080px) {
+    .hint { display: none; }
+  }
+  @media (max-width: 820px) {
+    .panel { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; max-height: 46vh; overflow-y: auto; }
+    .why { display: none; }
+    .graph { bottom: auto; top: 120px; left: 12px; width: calc(100vw - 24px); }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<header class="hud">
+  <h1>Вечный двигатель на магнитах</h1>
+  <div class="sub">Честная физика: магнитные диполи, трение, энергия</div>
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">Вращается</span></div>
+  <div class="readouts">
+    <span>Угловая скорость</span><b><span id="rOmega">0.00</span> рад/с</b>
+    <span>Крутящий момент</span><b><span id="rTorque">0.00</span> у.е.</b>
+    <span>Энергия системы</span><b><span id="rEnergy">0.00</span> у.е.</b>
+    <span>Обороты</span><b><span id="rTurns">0.0</span></b>
+  </div>
+</header>
+
+<aside class="panel">
+  <h2>Параметры</h2>
+
+  <div class="ctl">
+    <label for="strength">Сила магнитов <output id="oStrength">1.00</output></label>
+    <input id="strength" type="range" min="0.2" max="2" step="0.05" value="1" />
+  </div>
+  <div class="ctl">
+    <label for="friction">Трение <output id="oFriction">2.20</output></label>
+    <input id="friction" type="range" min="0" max="4" step="0.05" value="2.2" />
+  </div>
+  <div class="ctl">
+    <label for="push">Начальный толчок <output id="oPush">6.0</output></label>
+    <input id="push" type="range" min="0" max="12" step="0.5" value="6" />
+  </div>
+  <div class="ctl">
+    <label for="angle">Угол статора <output id="oAngle">55°</output></label>
+    <input id="angle" type="range" min="0" max="90" step="1" value="55" />
+  </div>
+
+  <div class="toggles">
+    <label><input id="showForces" type="checkbox" checked /> Показывать силы</label>
+    <label><input id="showGraph" type="checkbox" checked /> График энергии</label>
+  </div>
+
+  <div class="buttons">
+    <button id="playBtn" class="primary">Пауза</button>
+    <button id="resetBtn">Сброс</button>
+  </div>
+</aside>
+
+<section class="graph" id="graphBox">
+  <div class="legend">
+    <span class="w"><i></i>ω, рад/с</span>
+    <span class="e"><i></i>энергия</span>
+  </div>
+  <canvas id="graph"></canvas>
+</section>
+
+<details class="why">
+  <summary>Почему он остановится?</summary>
+  <p>
+    Магниты не создают энергию: поле лишь запасает её и возвращает. Магнитное поле
+    консервативно, поэтому за полный оборот работа магнитных сил равна нулю, а трение
+    рассеивает кинетическую энергию в тепло. Ротор останавливается в положении
+    равновесия — минимуме потенциальной энергии (ось удерживает его; иначе по
+    <b>теореме Ирншоу</b> свободный магнит не мог бы устойчиво висеть в поле).
+  </p>
+  <p>
+    Поставьте трение на <b>0</b> — энергия перестанет убывать, и ротор будет
+    вращаться сколь угодно долго. Но разогнаться он не сможет: магнитное поле
+    только перераспределяет энергию между кинетической и потенциальной.
+  </p>
+</details>
+
+<div class="hint">Перетаскивайте мышью, чтобы вращать камеру · колесо — масштаб</div>
+
+<div id="fallback">
+  <div>
+    <h2>Не удалось загрузить Three.js</h2>
+    <p>Сцена подгружает библиотеку с CDN, поэтому нужен интернет.</p>
+    <p>Если интернет есть, но файл открыт напрямую, запустите локальный сервер:<br />
+      <code>python -m http.server 8000</code> и откройте <code>http://localhost:8000</code>.</p>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+window.__threeLoaded = true;
+
+/* ----------------------------- Физика ----------------------------- */
+
+const TAU = Math.PI * 2;
+const ROTOR_COUNT = 8;
+const STATOR_COUNT = 8;
+const ROTOR_R = 1.75;
+const STATOR_R = 2.9;
+const K_MAG = 3.0;
+const INERTIA = 3.0;
+const SOFT_MIN_R = 0.45;
+const FIXED_DT = 1 / 480;
+
+const params = {
+  strength: 1.0,
+  friction: 2.2,
+  push: 6.0,
+  statorAngle: 55,
+};
+
+const state = {
+  theta: 0.1,
+  omega: 6.0,
+  torque: 0,
+  potential: 0,
+  turns: 0,
+  running: true,
+  stopped: false,
+  settleTimer: 0,
+};
+
+function rotorMagnets(theta, strength) {
+  const out = [];
+  for (let i = 0; i < ROTOR_COUNT; i++) {
+    const a = theta + i * TAU / ROTOR_COUNT;
+    out.push({
+      x: Math.cos(a) * ROTOR_R,
+      z: Math.sin(a) * ROTOR_R,
+      mx: Math.cos(a) * strength,
+      mz: Math.sin(a) * strength,
+      angle: a,
+    });
+  }
+  return out;
+}
+
+function statorMagnets(strength, angleDeg) {
+  const d = angleDeg * Math.PI / 180;
+  const out = [];
+  for (let j = 0; j < STATOR_COUNT; j++) {
+    const b = j * TAU / STATOR_COUNT;
+    out.push({
+      x: Math.cos(b) * STATOR_R,
+      z: Math.sin(b) * STATOR_R,
+      mx: Math.cos(b + d) * strength,
+      mz: Math.sin(b + d) * strength,
+    });
+  }
+  return out;
+}
+
+function fieldAt(px, pz, stator) {
+  let Bx = 0, Bz = 0;
+  for (const s of stator) {
+    const rx = px - s.x, rz = pz - s.z;
+    const r = Math.max(Math.hypot(rx, rz), SOFT_MIN_R);
+    const inv3 = 1 / (r * r * r);
+    const nx = rx / r, nz = rz / r;
+    const md = s.mx * nx + s.mz * nz;
+    Bx += K_MAG * (3 * md * nx - s.mx) * inv3;
+    Bz += K_MAG * (3 * md * nz - s.mz) * inv3;
+  }
+  return { Bx, Bz };
+}
+
+function potentialEnergy(theta, strength, angleDeg) {
+  const rotor = rotorMagnets(theta, strength);
+  const stator = statorMagnets(strength, angleDeg);
+  let U = 0;
+  for (const m of rotor) {
+    const { Bx, Bz } = fieldAt(m.x, m.z, stator);
+    U -= m.mx * Bx + m.mz * Bz;
+  }
+  return U;
+}
+
+// Момент силы для жёсткого ротора: τ = −dU/dθ. Численная производная
+// автоматически учитывает и момент диполя, и силу в неоднородном поле.
+const TORQUE_STEP = 1e-4;
+
+function magneticTorque(theta, strength, angleDeg) {
+  const U = potentialEnergy(theta, strength, angleDeg);
+  const torque = -(
+    potentialEnergy(theta + TORQUE_STEP, strength, angleDeg) -
+    potentialEnergy(theta - TORQUE_STEP, strength, angleDeg)
+  ) / (2 * TORQUE_STEP);
+  return { torque, U };
+}
+
+function forceOnMagnet(m, stator) {
+  let Fx = 0, Fz = 0;
+  for (const s of stator) {
+    const rx = m.x - s.x, rz = m.z - s.z;
+    const r = Math.max(Math.hypot(rx, rz), SOFT_MIN_R);
+    const nx = rx / r, nz = rz / r;
+    const m1r = s.mx * nx + s.mz * nz;
+    const m2r = m.mx * nx + m.mz * nz;
+    const dot = s.mx * m.mx + s.mz * m.mz;
+    const c = 3 * K_MAG / (r * r * r * r);
+    Fx += c * (m1r * m.mx + m2r * s.mx + dot * nx - 5 * m1r * m2r * nx);
+    Fz += c * (m1r * m.mz + m2r * s.mz + dot * nz - 5 * m1r * m2r * nz);
+  }
+  return { Fx, Fz };
+}
+
+function physicsStep(dt) {
+  const { torque: magnetic, U } = magneticTorque(state.theta, params.strength, params.statorAngle);
+
+  // Уже остановились: держим, пока магнитный момент не превысит порог удержания.
+  if (state.stopped) {
+    if (params.friction <= 0.05 || Math.abs(magnetic) > 1.1 * params.strength) {
+      state.stopped = false;
+      state.settleTimer = 0;
+    } else {
+      state.torque = magnetic;
+      state.potential = U;
+      return;
+    }
+  }
+
+  // Скорость-Верле: энергия сохраняется заметно лучше явного Эйлера.
+  let a1 = (magnetic - params.friction * state.omega) / INERTIA;
+  state.omega += 0.5 * a1 * dt;
+  state.theta += state.omega * dt;
+
+  const next = magneticTorque(state.theta, params.strength, params.statorAngle);
+  let a2 = (next.torque - params.friction * state.omega) / INERTIA;
+  state.omega += 0.5 * a2 * dt;
+
+  // Численная «статическая» остановка: только при наличии трения и после
+  // короткого удержания около нулевой скорости.
+  const holding = params.friction > 0.05
+    && Math.abs(state.omega) < 0.05
+    && Math.abs(next.torque) < 0.9 * params.strength;
+  if (holding) {
+    state.settleTimer += dt;
+    if (state.settleTimer > 0.35) {
+      state.omega = 0;
+      state.stopped = true;
+    }
+  } else {
+    state.settleTimer = 0;
+  }
+
+  state.turns += state.omega * dt / TAU;
+  state.torque = next.torque;
+  state.potential = next.U;
+}
+
+/* ----------------------------- Сцена ----------------------------- */
+
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05070c);
+scene.fog = new THREE.FogExp2(0x05070c, 0.032);
+
+const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 120);
+camera.position.set(0, 7.1, 9.3);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.15, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.075;
+controls.minDistance = 4.5;
+controls.maxDistance = 22;
+controls.maxPolarAngle = Math.PI * 0.47;
+controls.update();
+
+const hemi = new THREE.HemisphereLight(0x9fc4ff, 0x0a0f18, 1.45);
+scene.add(hemi);
+scene.add(new THREE.AmbientLight(0x5a7ba6, 0.45));
+
+const key = new THREE.DirectionalLight(0xffffff, 2.5);
+key.position.set(6, 11, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -8;
+key.shadow.camera.right = 8;
+key.shadow.camera.top = 8;
+key.shadow.camera.bottom = -8;
+key.shadow.camera.far = 30;
+key.shadow.bias = -0.0004;
+scene.add(key);
+
+const rim = new THREE.PointLight(0x2f7cff, 30, 22, 2);
+rim.position.set(-6, 5, -5);
+scene.add(rim);
+
+const fill = new THREE.PointLight(0xff6a3d, 12, 18, 2);
+fill.position.set(5, 2.5, -6);
+scene.add(fill);
+
+// Основание
+const baseMat = new THREE.MeshStandardMaterial({ color: 0x243245, metalness: 0.72, roughness: 0.5 });
+const base = new THREE.Mesh(new THREE.CylinderGeometry(4.35, 4.55, 0.22, 96), baseMat);
+base.position.y = 0.11;
+base.receiveShadow = true;
+base.castShadow = true;
+scene.add(base);
+
+const grooveMat = new THREE.MeshStandardMaterial({ color: 0x2b3a50, metalness: 0.9, roughness: 0.3 });
+for (const r of [4.2, 3.6]) {
+  const g = new THREE.Mesh(new THREE.TorusGeometry(r, 0.022, 8, 128), grooveMat);
+  g.rotation.x = Math.PI / 2;
+  g.position.y = 0.225;
+  scene.add(g);
+}
+
+const grid = new THREE.GridHelper(28, 28, 0x1d3550, 0x101b2b);
+grid.position.y = 0.002;
+scene.add(grid);
+
+// Стойки статора
+const postMat = new THREE.MeshStandardMaterial({ color: 0x243146, metalness: 0.85, roughness: 0.35 });
+for (let k = 0; k < 4; k++) {
+  const a = Math.PI / 8 + k * Math.PI / 2;
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.075, 0.92, 20), postMat);
+  post.position.set(Math.cos(a) * 2.9, 0.68, Math.sin(a) * 2.9);
+  post.castShadow = true;
+  scene.add(post);
+}
+
+// Кольцо статора
+const ring = new THREE.Mesh(
+  new THREE.TorusGeometry(STATOR_R, 0.055, 14, 160),
+  new THREE.MeshStandardMaterial({ color: 0x33465f, metalness: 0.95, roughness: 0.25 })
+);
+ring.rotation.x = Math.PI / 2;
+ring.position.y = 1.13;
+ring.castShadow = true;
+scene.add(ring);
+
+// Вал
+const shaftMat = new THREE.MeshStandardMaterial({ color: 0x8d9bb0, metalness: 1.0, roughness: 0.22 });
+const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 1.5, 24), shaftMat);
+shaft.position.y = 0.85;
+shaft.castShadow = true;
+scene.add(shaft);
+
+// Ротор
+const rotorGroup = new THREE.Group();
+rotorGroup.position.y = 1.15;
+scene.add(rotorGroup);
+
+const rotorDisc = new THREE.Mesh(
+  new THREE.CylinderGeometry(2.25, 2.25, 0.13, 96),
+  new THREE.MeshStandardMaterial({ color: 0x36485f, metalness: 0.7, roughness: 0.42, emissive: 0x0a1626, emissiveIntensity: 0.75 })
+);
+rotorDisc.castShadow = true;
+rotorDisc.receiveShadow = true;
+rotorGroup.add(rotorDisc);
+
+const rotorRim = new THREE.Mesh(
+  new THREE.TorusGeometry(2.25, 0.035, 10, 120),
+  new THREE.MeshStandardMaterial({ color: 0x50d8e8, metalness: 0.4, roughness: 0.3, emissive: 0x0e4a54, emissiveIntensity: 0.8 })
+);
+rotorRim.rotation.x = Math.PI / 2;
+rotorRim.position.y = 0.07;
+rotorGroup.add(rotorRim);
+
+const hub = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.34, 0.38, 0.42, 40),
+  new THREE.MeshStandardMaterial({ color: 0x7b8ba2, metalness: 1.0, roughness: 0.25 })
+);
+hub.position.y = 0.16;
+hub.castShadow = true;
+rotorGroup.add(hub);
+
+const magMats = {
+  north: new THREE.MeshStandardMaterial({ color: 0xd6403a, metalness: 0.35, roughness: 0.35, emissive: 0x5a120f, emissiveIntensity: 0.55 }),
+  south: new THREE.MeshStandardMaterial({ color: 0x3f7ae0, metalness: 0.35, roughness: 0.35, emissive: 0x0f2a63, emissiveIntensity: 0.55 }),
+};
+
+function createMagnet(length = 0.56, height = 0.17, depth = 0.23) {
+  const g = new THREE.Group();
+  const half = length / 2;
+  const north = new THREE.Mesh(new THREE.BoxGeometry(half, height, depth), magMats.north);
+  north.position.x = half / 2;
+  north.castShadow = true;
+  const south = new THREE.Mesh(new THREE.BoxGeometry(half, height, depth), magMats.south);
+  south.position.x = -half / 2;
+  south.castShadow = true;
+  g.add(north, south);
+  return g;
+}
+
+for (let i = 0; i < ROTOR_COUNT; i++) {
+  const a = i * TAU / ROTOR_COUNT;
+  const m = createMagnet();
+  m.position.set(Math.cos(a) * ROTOR_R, 0.17, Math.sin(a) * ROTOR_R);
+  m.rotation.y = -a;
+  rotorGroup.add(m);
+}
+
+for (let j = 0; j < STATOR_COUNT; j++) {
+  const b = j * TAU / STATOR_COUNT;
+  const m = createMagnet(0.52, 0.16, 0.22);
+  m.position.set(Math.cos(b) * STATOR_R, 1.16, Math.sin(b) * STATOR_R);
+  m.rotation.y = -(b + params.statorAngle * Math.PI / 180);
+  m.userData.baseAngle = b;
+  scene.add(m);
+}
+const statorMeshes = scene.children.filter(o => o.isGroup && o.userData.baseAngle !== undefined);
+
+function updateStatorAngles() {
+  const d = params.statorAngle * Math.PI / 180;
+  for (const m of statorMeshes) {
+    m.rotation.y = -(m.userData.baseAngle + d);
+  }
+}
+
+// Стрелки сил
+const arrowGroup = new THREE.Group();
+scene.add(arrowGroup);
+const arrows = [];
+const arrowColor = new THREE.Color(0x6fe8ff);
+for (let i = 0; i < ROTOR_COUNT; i++) {
+  const a = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 0.5, arrowColor, 0.16, 0.1);
+  a.visible = false;
+  arrowGroup.add(a);
+  arrows.push(a);
+}
+
+function updateArrows() {
+  if (!document.getElementById('showForces').checked) {
+    for (const a of arrows) a.visible = false;
+    return;
+  }
+  const stator = statorMagnets(params.strength, params.statorAngle);
+  const rotor = rotorMagnets(state.theta, params.strength);
+  for (let i = 0; i < rotor.length; i++) {
+    const m = rotor[i];
+    const { Fx, Fz } = forceOnMagnet(m, stator);
+    const len = Math.hypot(Fx, Fz);
+    const arrow = arrows[i];
+    if (len < 1e-6) { arrow.visible = false; continue; }
+    const scale = 0.22 + 1.05 * (1 - Math.exp(-len / 7));
+    arrow.visible = true;
+    arrow.position.set(m.x, 1.56, m.z);
+    arrow.setDirection(new THREE.Vector3(Fx / len, 0, Fz / len));
+    arrow.setLength(scale, scale * 0.34, scale * 0.2);
+  }
+}
+
+/* ----------------------------- График ----------------------------- */
+
+const graphCanvas = document.getElementById('graph');
+const gctx = graphCanvas.getContext('2d');
+const history = [];
+let lastSample = 0;
+const HISTORY_LIMIT = 900; // ~15 c при 60 fps
+
+function graphResize() {
+  const dpr = Math.min(devicePixelRatio, 2);
+  const rect = graphCanvas.getBoundingClientRect();
+  graphCanvas.width = Math.round(rect.width * dpr);
+  graphCanvas.height = Math.round(rect.height * dpr);
+  gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', graphResize);
+graphResize();
+
+function drawGraph() {
+  const w = graphCanvas.clientWidth;
+  const h = graphCanvas.clientHeight;
+  gctx.clearRect(0, 0, w, h);
+  if (history.length < 2) return;
+
+  const padL = 6, padR = 6, padT = 8, padB = 14;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  let wMax = 1;
+  let eMin = Infinity, eMax = -Infinity;
+  for (const s of history) {
+    wMax = Math.max(wMax, Math.abs(s.w));
+    eMin = Math.min(eMin, s.e);
+    eMax = Math.max(eMax, s.e);
+  }
+  if (eMax - eMin < 1e-6) { eMax += 1; eMin -= 1; }
+  const ePad = (eMax - eMin) * 0.12;
+  eMin -= ePad; eMax += ePad;
+
+  gctx.strokeStyle = 'rgba(120, 160, 220, 0.13)';
+  gctx.lineWidth = 1;
+  for (let i = 0; i <= 3; i++) {
+    const y = padT + plotH * i / 3;
+    gctx.beginPath(); gctx.moveTo(padL, y); gctx.lineTo(padL + plotW, y); gctx.stroke();
+  }
+
+  const t0 = history[0].t, t1 = history[history.length - 1].t;
+  const span = Math.max(t1 - t0, 1e-3);
+  const xOf = t => padL + plotW * (t - t0) / span;
+  const yW = v => padT + plotH * (0.5 - 0.5 * Math.max(-1.15, Math.min(1.15, v / wMax)));
+  const yE = v => padT + plotH * (1 - (v - eMin) / (eMax - eMin));
+
+  const zeroY = yW(0);
+  gctx.strokeStyle = 'rgba(120, 160, 220, 0.22)';
+  gctx.setLineDash([3, 4]);
+  gctx.beginPath(); gctx.moveTo(padL, zeroY); gctx.lineTo(padL + plotW, zeroY); gctx.stroke();
+  gctx.setLineDash([]);
+
+  gctx.strokeStyle = '#ffb454';
+  gctx.lineWidth = 1.5;
+  gctx.beginPath();
+  history.forEach((s, i) => {
+    const x = xOf(s.t), y = yE(s.e);
+    if (i === 0) gctx.moveTo(x, y); else gctx.lineTo(x, y);
+  });
+  gctx.stroke();
+
+  gctx.strokeStyle = '#35d0e0';
+  gctx.lineWidth = 1.8;
+  gctx.beginPath();
+  history.forEach((s, i) => {
+    const x = xOf(s.t), y = yW(s.w);
+    if (i === 0) gctx.moveTo(x, y); else gctx.lineTo(x, y);
+  });
+  gctx.stroke();
+
+  gctx.font = '10px "Segoe UI", system-ui, sans-serif';
+  gctx.fillStyle = 'rgba(127, 142, 166, 0.9)';
+  gctx.fillText(`+${wMax.toFixed(1)}`, padL + 2, padT + 9);
+  gctx.fillText(`−${wMax.toFixed(1)}`, padL + 2, padT + plotH - 2);
+  gctx.textAlign = 'right';
+  gctx.fillStyle = 'rgba(255, 180, 84, 0.85)';
+  gctx.fillText(eMax.toFixed(1), padL + plotW - 2, padT + 9);
+  gctx.fillText(eMin.toFixed(1), padL + plotW - 2, padT + plotH - 2);
+  gctx.textAlign = 'left';
+}
+
+/* ----------------------------- UI ----------------------------- */
+
+const ui = {
+  strength: document.getElementById('strength'),
+  friction: document.getElementById('friction'),
+  push: document.getElementById('push'),
+  angle: document.getElementById('angle'),
+  showForces: document.getElementById('showForces'),
+  showGraph: document.getElementById('showGraph'),
+  playBtn: document.getElementById('playBtn'),
+  resetBtn: document.getElementById('resetBtn'),
+  status: document.getElementById('status'),
+  statusText: document.getElementById('statusText'),
+  graphBox: document.getElementById('graphBox'),
+  rOmega: document.getElementById('rOmega'),
+  rTorque: document.getElementById('rTorque'),
+  rEnergy: document.getElementById('rEnergy'),
+  rTurns: document.getElementById('rTurns'),
+  oStrength: document.getElementById('oStrength'),
+  oFriction: document.getElementById('oFriction'),
+  oPush: document.getElementById('oPush'),
+  oAngle: document.getElementById('oAngle'),
+};
+
+ui.strength.addEventListener('input', () => {
+  params.strength = +ui.strength.value;
+  ui.oStrength.textContent = params.strength.toFixed(2);
+  wakeRotor();
+});
+ui.friction.addEventListener('input', () => {
+  params.friction = +ui.friction.value;
+  ui.oFriction.textContent = params.friction.toFixed(2);
+  if (params.friction === 0) { state.stopped = false; state.settleTimer = 0; }
+});
+ui.push.addEventListener('input', () => {
+  params.push = +ui.push.value;
+  ui.oPush.textContent = params.push.toFixed(1);
+});
+ui.angle.addEventListener('input', () => {
+  params.statorAngle = +ui.angle.value;
+  ui.oAngle.textContent = params.statorAngle + '°';
+  updateStatorAngles();
+  wakeRotor();
+});
+
+function wakeRotor() {
+  state.stopped = false;
+  state.settleTimer = 0;
+}
+ui.showGraph.addEventListener('change', () => {
+  ui.graphBox.style.display = ui.showGraph.checked ? '' : 'none';
+  if (ui.showGraph.checked) { graphResize(); }
+});
+ui.playBtn.addEventListener('click', () => {
+  state.running = !state.running;
+  ui.playBtn.textContent = state.running ? 'Пауза' : 'Продолжить';
+  updateStatus();
+});
+ui.resetBtn.addEventListener('click', resetSimulation);
+
+function resetSimulation() {
+  state.theta = 0.1;
+  state.omega = params.push;
+  state.torque = 0;
+  state.potential = magneticTorque(state.theta, params.strength, params.statorAngle).U;
+  state.turns = 0;
+  state.stopped = false;
+  state.settleTimer = 0;
+  state.running = true;
+  history.length = 0;
+  ui.playBtn.textContent = 'Пауза';
+  updateStatus();
+}
+
+function updateStatus() {
+  if (!state.running) {
+    ui.status.className = 'status paused';
+    ui.statusText.textContent = 'Пауза';
+    return;
+  }
+  if (state.stopped) {
+    ui.status.className = 'status stopped';
+    ui.statusText.textContent = 'Остановился в равновесии';
+  } else {
+    ui.status.className = 'status';
+    ui.statusText.textContent = 'Вращается';
+  }
+}
+
+let lastHud = 0;
+function updateHud(now) {
+  if (now - lastHud < 90) return;
+  lastHud = now;
+  let energy = 0.5 * INERTIA * state.omega * state.omega + state.potential;
+  ui.rOmega.textContent = state.omega.toFixed(2);
+  ui.rTorque.textContent = state.torque.toFixed(2);
+  ui.rEnergy.textContent = energy.toFixed(1);
+  ui.rTurns.textContent = state.turns.toFixed(2);
+  updateStatus();
+}
+
+/* ----------------------------- Цикл ----------------------------- */
+
+const clock = new THREE.Clock();
+let accumulator = 0;
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+resetSimulation();
+
+// Отладочный доступ для автоматических проверок и консоли браузера.
+window.__sim = { state, params, magneticTorque, potentialEnergy };
+
+function animate() {  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (state.running) {
+    accumulator += dt;
+    let guard = 0;
+    while (accumulator >= FIXED_DT && guard++ < 60) {
+      physicsStep(FIXED_DT);
+      accumulator -= FIXED_DT;
+    }
+  } else {
+    accumulator = 0;
+  }
+
+  rotorGroup.rotation.y = -state.theta;
+  updateArrows();
+  updateHud(performance.now());
+
+  const now = performance.now() / 1000;
+  if (now - lastSample > 0.033) {
+    lastSample = now;
+    history.push({
+      t: now,
+      w: state.omega,
+      e: 0.5 * INERTIA * state.omega * state.omega + state.potential,
+    });
+    if (history.length > HISTORY_LIMIT) history.shift();
+  }
+  if (ui.showGraph.checked) drawGraph();
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+setTimeout(() => {
+  if (!window.__threeLoaded) {
+    document.getElementById('fallback').classList.add('show');
+  }
+}, 4000);
+</script>
+</body>
+</html>
