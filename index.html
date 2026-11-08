@@ -85,6 +85,8 @@
   .toggles label { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
   input[type="checkbox"] { accent-color: var(--cyan); width: 14px; height: 14px; cursor: pointer; }
   .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .buttons .wide { grid-column: 1 / -1; }
+  button.ghost { background: rgba(120, 160, 220, 0.08); border-color: rgba(120, 160, 220, 0.22); color: #c6d3e6; }
   button {
     font: inherit; font-size: 13px; padding: 9px 10px; border-radius: 9px;
     border: 1px solid rgba(120, 170, 230, 0.28); color: var(--text);
@@ -127,6 +129,36 @@
   }
   .why p { margin: 10px 0 2px; line-height: 1.55; }
   .why b { color: #e8f0fb; }
+
+  .modal {
+    position: fixed; inset: 0; z-index: 30; display: none;
+    place-items: center; padding: 22px;
+    background: rgba(2, 6, 12, 0.72); backdrop-filter: blur(7px);
+  }
+  .modal.show { display: grid; }
+  .modal-card {
+    position: relative; width: min(640px, 100%); max-height: 86vh; overflow-y: auto;
+    padding: 26px 28px 20px; border-radius: 16px;
+    background: #0b131f; border: 1px solid rgba(120, 160, 220, 0.24);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+    font-size: 13.5px; line-height: 1.55; color: #c3cfe0;
+  }
+  .modal-card h2 { margin: 0 32px 6px 0; font-size: 19px; color: #eef4fd; }
+  .modal-card .lead { margin: 0 0 14px; color: var(--muted); font-size: 12.5px; }
+  .modal-card ol { margin: 0; padding-left: 22px; display: grid; gap: 9px; }
+  .modal-card li b { color: #eef4fd; }
+  .modal-card .note {
+    margin: 14px 0 0; padding: 11px 14px; border-radius: 10px;
+    background: rgba(53, 208, 224, 0.07); border: 1px solid rgba(53, 208, 224, 0.18);
+    color: #a9e8f2; font-size: 12.5px;
+  }
+  .modal-card .foot { margin-top: 16px; display: flex; justify-content: flex-end; }
+  .modal-close {
+    position: absolute; top: 12px; right: 12px; width: 32px; height: 32px;
+    padding: 0; border-radius: 8px; font-size: 18px; line-height: 1;
+    background: transparent; border-color: transparent; color: var(--muted);
+  }
+  .modal-close:hover { color: var(--text); background: rgba(120, 160, 220, 0.12); border-color: transparent; }
 
   .hint {
     position: fixed; left: 50%; top: 20px; transform: translateX(-50%);
@@ -196,6 +228,7 @@
   <div class="buttons">
     <button id="playBtn" class="primary">Пауза</button>
     <button id="resetBtn">Сброс</button>
+    <button id="conditionsBtn" class="wide ghost">ⓘ Условия вечного вращения</button>
   </div>
 </aside>
 
@@ -222,6 +255,41 @@
     только перераспределяет энергию между кинетической и потенциальной.
   </p>
 </details>
+
+<div class="modal" id="conditionsModal" role="dialog" aria-modal="true" aria-labelledby="conditionsTitle" aria-hidden="true">
+  <div class="modal-card">
+    <button class="modal-close" id="conditionsClose" type="button" aria-label="Закрыть">×</button>
+    <h2 id="conditionsTitle">Условия вечного вращения</h2>
+    <p class="lead">
+      Вечное вращение — не то же самое, что вечный двигатель. Ротор может крутиться
+      сколько угодно, только если энергия не тратится и никуда не отдаётся.
+      Для этого одновременно нужны:
+    </p>
+    <ol>
+      <li><b>Нулевое трение</b> — идеальные подшипники (например, магнитные) и вакуум,
+        без сопротивления воздуха и смазки.</li>
+      <li><b>Нет потерь в материалах</b> — никаких вихревых токов, гистерезиса и нагрева
+        магнитов и металла.</li>
+      <li><b>Нет излучения энергии</b> — вращение не должно порождать звук, тепло или
+        электромагнитные волны.</li>
+      <li><b>Нет нагрузки</b> — нельзя снимать мощность: любой генератор, вентилятор или
+        груз отберёт энергию и остановит ротор.</li>
+      <li><b>Начальный импульс</b> — из состояния покоя ротор не запустится: статическое
+        поле магнитов не совершает положительной работы за полный оборот.</li>
+      <li><b>Замкнутая консервативная система</b> — магниты только перекачивают энергию
+        между кинетической и потенциальной; работа за цикл равна нулю.</li>
+    </ol>
+    <p class="note">
+      В реальном мире все шесть условий одновременно недостижимы. Поэтому настоящий
+      двигатель останавливается, а «вечный» — это либо идеализация без трения, либо
+      устройство с внешним источником энергии.
+    </p>
+    <p class="note">Проверить в модели: «Трение» → 0, затем «Сброс».</p>
+    <div class="foot">
+      <button id="conditionsOk" type="button">Понятно</button>
+    </div>
+  </div>
+</div>
 
 <div class="hint">Перетаскивайте мышью, чтобы вращать камеру · колесо — масштаб</div>
 
@@ -707,6 +775,10 @@ const ui = {
   showGraph: document.getElementById('showGraph'),
   playBtn: document.getElementById('playBtn'),
   resetBtn: document.getElementById('resetBtn'),
+  conditionsBtn: document.getElementById('conditionsBtn'),
+  conditionsModal: document.getElementById('conditionsModal'),
+  conditionsClose: document.getElementById('conditionsClose'),
+  conditionsOk: document.getElementById('conditionsOk'),
   status: document.getElementById('status'),
   statusText: document.getElementById('statusText'),
   graphBox: document.getElementById('graphBox'),
@@ -755,6 +827,28 @@ ui.playBtn.addEventListener('click', () => {
   updateStatus();
 });
 ui.resetBtn.addEventListener('click', resetSimulation);
+
+function openConditions() {
+  ui.conditionsModal.classList.add('show');
+  ui.conditionsModal.setAttribute('aria-hidden', 'false');
+  ui.conditionsOk.focus();
+}
+
+function closeConditions() {
+  ui.conditionsModal.classList.remove('show');
+  ui.conditionsModal.setAttribute('aria-hidden', 'true');
+  ui.conditionsBtn.focus();
+}
+
+ui.conditionsBtn.addEventListener('click', openConditions);
+ui.conditionsClose.addEventListener('click', closeConditions);
+ui.conditionsOk.addEventListener('click', closeConditions);
+ui.conditionsModal.addEventListener('click', (e) => {
+  if (e.target === ui.conditionsModal) closeConditions();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && ui.conditionsModal.classList.contains('show')) closeConditions();
+});
 
 function resetSimulation() {
   state.theta = 0.1;
